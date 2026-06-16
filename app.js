@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-    const API_BASE_URL = "";
+    const API_BASE_URL = window.location.protocol.startsWith("http") ? "" : "http://127.0.0.1:8000";
 
     let currentStep = 1;
     let startupIdea = "";
