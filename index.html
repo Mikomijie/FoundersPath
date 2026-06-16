@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FoundersPath — Startup Validator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="logo">
+                <i class="fa-solid fa-compass-drafting logo-icon"></i>
+                <span class="logo-text">FoundersPath</span>
+            </div>
+            <p class="tagline">Verify assumptions. Refine vision. Launch with confidence.</p>
+        </header>
+
+        <main class="main-content">
+            <section id="step-1" class="step-card active">
+                <div class="step-header">
+                    <div class="step-indicator">Step 1 of 3</div>
+                    <h2>Describe Your Startup Idea</h2>
+                    <p class="subtitle">Tell us what you want to build. The AI will challenge your idea with critical questions.</p>
+                </div>
+                <div class="form-group">
+                    <label for="startup-idea-input">What is your startup idea?</label>
+                    <textarea id="startup-idea-input" placeholder="e.g., An AI therapist for developers that runs locally and keeps all mental health data fully encrypted and private..." required></textarea>
+                    <div class="char-count"><span id="char-num">0</span> characters</div>
+                </div>
+                <div class="button-group">
+                    <button id="btn-get-questions" class="btn btn-primary">
+                        <span>Generate Questions</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </section>
+
+            <section id="step-2" class="step-card hidden">
+                <div class="step-header">
+                    <div class="step-indicator">Step 2 of 3</div>
+                    <h2>The Smart Questions</h2>
+                    <p class="subtitle">Please answer these three critical questions raised by the AI.</p>
+                </div>
+                <div class="questions-container">
+                    <div class="form-group question-block">
+                        <label id="lbl-question-1" for="answer-1">Question 1</label>
+                        <textarea id="answer-1" placeholder="Provide your answer or assumption validation strategy..." required></textarea>
+                    </div>
+                    <div class="form-group question-block">
+                        <label id="lbl-question-2" for="answer-2">Question 2</label>
+                        <textarea id="answer-2" placeholder="Provide your answer or assumption validation strategy..." required></textarea>
+                    </div>
+                    <div class="form-group question-block">
+                        <label id="lbl-question-3" for="answer-3">Question 3</label>
+                        <textarea id="answer-3" placeholder="Provide your answer or assumption validation strategy..." required></textarea>
+                    </div>
+                </div>
+                <div class="button-group justify-between">
+                    <button id="btn-back-to-step-1" class="btn btn-secondary">
+                        <i class="fa-solid fa-arrow-left"></i>
+                        <span>Back</span>
+                    </button>
+                    <button id="btn-get-analysis" class="btn btn-primary">
+                        <span>Analyze Startup</span>
+                        <i class="fa-solid fa-brain"></i>
+                    </button>
+                </div>
+            </section>
+
+            <section id="step-3" class="step-card hidden">
+                <div class="step-header">
+                    <div class="step-indicator">Step 3 of 3</div>
+                    <h2>Validation Dashboard</h2>
+                    <p class="subtitle">AI critique, confidence level, and roadmap.</p>
+                </div>
+
+                <div class="analysis-results">
+                    <div class="result-summary-card">
+                        <div class="confidence-display">
+                            <span class="label">Confidence Score</span>
+                            <div class="confidence-badge" id="confidence-badge-value">Medium</div>
+                        </div>
+                        <div class="glowing-ring-container">
+                            <div class="pulsing-glow" id="confidence-glow"></div>
+                        </div>
+                    </div>
+
+                    <div class="report-content" id="report-content-body"></div>
+                </div>
+
+                <div class="button-group justify-center mt-8">
+                    <button id="btn-restart" class="btn btn-secondary">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        <span>Validate Another Idea</span>
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="loading-spinner-container">
+                <div class="spinner"></div>
+                <p id="loading-text" class="loading-text">Challenging assumptions...</p>
+                <div class="loading-progress-bar">
+                    <div class="progress-bar-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="toast-container" class="toast-container"></div>
+
+        <footer class="app-footer">
+            <p>&copy; 2026 FoundersPath.</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

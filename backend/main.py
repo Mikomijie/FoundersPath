@@ -1,9 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import httpx
 import os
 from dotenv import load_dotenv
+import urllib.parse
 
 load_dotenv()
 
@@ -45,99 +48,65 @@ REASONING:
 
 @app.post("/generate-questions")
 async def generate_questions(startup: StartupIdea):
-    api_key = os.getenv('OPENROUTER_API_KEY')
-    
-    if not api_key:
-        return {"status": "error", "message": "API key not configured"}
-    
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "model": "openrouter/free",
-        "messages": [
-            {"role": "system", "content": QUESTIONS_PROMPT},
-            {"role": "user", "content": f"Idea: {startup.idea}"}
-        ],
-        "temperature": 0.7,
-        "max_tokens": 300
-    }
+    prompt = f"Idea: {startup.idea}"
+    encoded_prompt = urllib.parse.quote(prompt)
+    encoded_system = urllib.parse.quote(QUESTIONS_PROMPT)
+    url = f"https://text.pollinations.ai/{encoded_prompt}?system={encoded_system}"
     
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=payload
-            )
+            response = await client.get(url)
             
             if response.status_code != 200:
                 return {"status": "error", "message": f"API error: {response.status_code}", "details": response.text}
             
-            result = response.json()
+            text = response.text
+            if not text:
+                return {"status": "error", "message": "Empty response from AI"}
             
-            if "error" in result:
-                return {"status": "error", "message": result["error"]}
+            for marker in ["**Support Pollinations.AI:**", "Support Pollinations.AI"]:
+                if marker in text:
+                    text = text.split(marker)[0].strip()
             
-            if "choices" in result and len(result["choices"]) > 0:
-                text = result["choices"][0]["message"]["content"]
-                if text is None:
-                    return {"status": "error", "message": "Empty response from AI", "full_response": str(result)}
-                lines = [line.strip() for line in text.split('\n') if line.strip()]
-                return {"status": "success", "questions": lines[:3]}
-            
-            return {"status": "error", "message": "Invalid response format", "response": str(result)}
+            text_lines = text.split("\n")
+            while text_lines and text_lines[-1].strip() in ["", "---", "___", "***"]:
+                text_lines.pop()
+            text = "\n".join(text_lines).strip()
+                
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+            return {"status": "success", "questions": lines[:3]}
     
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @app.post("/analyze")
 async def analyze_startup(startup: StartupAnalysis):
-    api_key = os.getenv('OPENROUTER_API_KEY')
-    
-    if not api_key:
-        return {"status": "error", "message": "API key not configured"}
-    
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "model": "openrouter/free",
-        "messages": [
-            {"role": "system", "content": ANALYSIS_PROMPT},
-            {"role": "user", "content": f"Idea: {startup.idea}\nQ1: {startup.answer1}\nQ2: {startup.answer2}\nQ3: {startup.answer3}"}
-        ],
-        "temperature": 0.7,
-        "max_tokens": 1000
-    }
+    prompt = f"Idea: {startup.idea}\nQ1: {startup.answer1}\nQ2: {startup.answer2}\nQ3: {startup.answer3}"
+    encoded_prompt = urllib.parse.quote(prompt)
+    encoded_system = urllib.parse.quote(ANALYSIS_PROMPT)
+    url = f"https://text.pollinations.ai/{encoded_prompt}?system={encoded_system}"
     
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=payload
-            )
+            response = await client.get(url)
             
             if response.status_code != 200:
                 return {"status": "error", "message": f"API error: {response.status_code}", "details": response.text}
             
-            result = response.json()
+            analysis = response.text
+            if not analysis:
+                return {"status": "error", "message": "Empty response from AI"}
             
-            if "error" in result:
-                return {"status": "error", "message": result["error"]}
+            for marker in ["**Support Pollinations.AI:**", "Support Pollinations.AI"]:
+                if marker in analysis:
+                    analysis = analysis.split(marker)[0].strip()
             
-            if "choices" in result and len(result["choices"]) > 0:
-                analysis = result["choices"][0]["message"]["content"]
-                if analysis is None:
-                    return {"status": "error", "message": "Empty response from AI", "full_response": str(result)}
-                return {"status": "success", "analysis": analysis}
-            
-            return {"status": "error", "message": "Invalid response format", "response": str(result)}
+            analysis_lines = analysis.split("\n")
+            while analysis_lines and analysis_lines[-1].strip() in ["", "---", "___", "***"]:
+                analysis_lines.pop()
+            analysis = "\n".join(analysis_lines).strip()
+                
+            return {"status": "success", "analysis": analysis}
     
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -145,6 +114,14 @@ async def analyze_startup(startup: StartupAnalysis):
 @app.get("/health")
 async def health():
     return {"status": "Backend is running"}
+
+PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+@app.get("/")
+async def serve_index():
+    return FileResponse(os.path.join(PARENT_DIR, "index.html"))
+
+app.mount("/", StaticFiles(directory=PARENT_DIR), name="static")
 
 if __name__ == "__main__":
     import uvicorn
