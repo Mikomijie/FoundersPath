@@ -5,7 +5,8 @@ from pydantic import BaseModel
 import httpx
 import os
 import re
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import hashlib
 import hmac
 import secrets
@@ -35,47 +36,63 @@ MODEL        = "llama-3.3-70b-versatile"
 
 if not GROQ_API_KEY:
     import warnings
-    warnings.warn("⚠️  GROQ_API_KEY is not set. AI endpoints will return 401 errors.", RuntimeWarning)
+    warnings.warn("⚠️  GROQ_API_KEY is not set. AI endpoints will fail.", RuntimeWarning)
 
-# ── Database ────────────────────────────────────────────────────
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.db")
+# ── Database (PostgreSQL via Supabase) ───────────────────────────
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    import warnings
+    warnings.warn("⚠️  DATABASE_URL is not set. All database operations will fail.", RuntimeWarning)
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
+    """Return a new psycopg2 connection using the DATABASE_URL env var."""
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL environment variable is not set.")
+    # Supabase connection strings use 'postgres://' — psycopg2 needs 'postgresql://'
+    url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    conn = psycopg2.connect(url, cursor_factory=psycopg2.extras.RealDictCursor)
     return conn
 
 def init_db():
+    """Create tables if they don't already exist."""
     conn = get_db()
-    conn.executescript("""
+    cur  = conn.cursor()
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id           TEXT PRIMARY KEY,
-            email        TEXT UNIQUE NOT NULL,
-            name         TEXT NOT NULL,
+            id            TEXT PRIMARY KEY,
+            email         TEXT UNIQUE NOT NULL,
+            name          TEXT NOT NULL,
             password_hash TEXT NOT NULL,
-            salt         TEXT NOT NULL,
-            created_at   TEXT NOT NULL
+            salt          TEXT NOT NULL,
+            created_at    TEXT NOT NULL
         );
+    """)
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
             token      TEXT PRIMARY KEY,
-            user_id    TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL
         );
+    """)
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS conversations (
             id         TEXT PRIMARY KEY,
-            user_id    TEXT NOT NULL,
+            user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             idea       TEXT NOT NULL,
             analysis   TEXT,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            created_at TEXT NOT NULL
         );
     """)
     conn.commit()
+    cur.close()
     conn.close()
 
-init_db()
+try:
+    init_db()
+except Exception as e:
+    import warnings
+    warnings.warn(f"⚠️  Could not initialise database: {e}", RuntimeWarning)
 
 # ── Auth helpers ────────────────────────────────────────────────
 def hash_password(password: str, salt: str = None):
@@ -93,10 +110,13 @@ def get_user_from_token(authorization: Optional[str] = Header(None)):
         return None
     token = authorization[7:]
     conn  = get_db()
-    row   = conn.execute(
-        "SELECT u.* FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.token = ?",
+    cur   = conn.cursor()
+    cur.execute(
+        "SELECT u.* FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.token = %s",
         (token,)
-    ).fetchone()
+    )
+    row = cur.fetchone()
+    cur.close()
     conn.close()
     return dict(row) if row else None
 
@@ -134,7 +154,7 @@ class ConversationSave(BaseModel):
 # ── Groq call ───────────────────────────────────────────────────
 async def call_groq(system_prompt: str, user_prompt: str, max_tokens: int = 700) -> str:
     if not GROQ_API_KEY:
-        raise ValueError("GROQ_API_KEY is not configured. Please set it in backend/.env and restart the server.")
+        raise ValueError("GROQ_API_KEY is not configured. Set it in Railway environment variables.")
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json",
@@ -160,7 +180,7 @@ def extract_questions(text: str) -> list:
     # Match lines that start with a number or Q prefix: "1.", "1)", "Q1:", "(1)"
     numbered = []
     for line in lines:
-        if re.match(r"^[\(\[]?[Qq]?[123][\.\)\]:]", line):
+        if re.match(r"^[\(\[]?[Qq]?[123][\.\)\]:]\s*", line):
             cleaned = re.sub(r"^[\(\[]?[Qq]?[123][\.\)\]:]\s*", "", line).strip()
             if len(cleaned) > 15:
                 numbered.append(cleaned)
@@ -187,30 +207,38 @@ async def register(req: RegisterRequest):
 
     password_hash, salt = hash_password(req.password)
     user_id = str(uuid.uuid4())
+    token   = secrets.token_hex(32)
 
     conn = get_db()
+    cur  = conn.cursor()
     try:
-        conn.execute(
-            "INSERT INTO users (id, email, name, password_hash, salt, created_at) VALUES (?,?,?,?,?,?)",
+        cur.execute(
+            "INSERT INTO users (id, email, name, password_hash, salt, created_at) VALUES (%s,%s,%s,%s,%s,%s)",
             (user_id, req.email.lower().strip(), req.name.strip(), password_hash, salt, datetime.utcnow().isoformat()),
         )
-        token = secrets.token_hex(32)
-        conn.execute(
-            "INSERT INTO sessions (token, user_id, created_at) VALUES (?,?,?)",
+        cur.execute(
+            "INSERT INTO sessions (token, user_id, created_at) VALUES (%s,%s,%s)",
             (token, user_id, datetime.utcnow().isoformat()),
         )
         conn.commit()
-    except sqlite3.IntegrityError:
+    except psycopg2.errors.UniqueViolation:
+        conn.rollback()
+        cur.close()
         conn.close()
         raise HTTPException(409, "An account with this email already exists.")
-    conn.close()
+    finally:
+        cur.close()
+        conn.close()
 
     return {"token": token, "user": {"id": user_id, "email": req.email.lower().strip(), "name": req.name.strip()}}
 
 @app.post("/auth/login")
 async def login(req: LoginRequest):
     conn = get_db()
-    row  = conn.execute("SELECT * FROM users WHERE email = ?", (req.email.lower().strip(),)).fetchone()
+    cur  = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE email = %s", (req.email.lower().strip(),))
+    row = cur.fetchone()
+    cur.close()
     conn.close()
 
     if not row or not verify_password(req.password, row["password_hash"], row["salt"]):
@@ -218,11 +246,13 @@ async def login(req: LoginRequest):
 
     token = secrets.token_hex(32)
     conn  = get_db()
-    conn.execute(
-        "INSERT INTO sessions (token, user_id, created_at) VALUES (?,?,?)",
+    cur   = conn.cursor()
+    cur.execute(
+        "INSERT INTO sessions (token, user_id, created_at) VALUES (%s,%s,%s)",
         (token, row["id"], datetime.utcnow().isoformat()),
     )
     conn.commit()
+    cur.close()
     conn.close()
 
     return {"token": token, "user": {"id": row["id"], "email": row["email"], "name": row["name"]}}
@@ -232,8 +262,10 @@ async def logout(authorization: Optional[str] = Header(None)):
     if authorization and authorization.startswith("Bearer "):
         token = authorization[7:]
         conn  = get_db()
-        conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        cur   = conn.cursor()
+        cur.execute("DELETE FROM sessions WHERE token = %s", (token,))
         conn.commit()
+        cur.close()
         conn.close()
     return {"status": "ok"}
 
@@ -245,29 +277,39 @@ async def me(user=Depends(require_auth)):
 @app.get("/conversations")
 async def list_conversations(user=Depends(require_auth)):
     conn = get_db()
-    rows = conn.execute(
-        "SELECT id, idea, analysis, created_at FROM conversations WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
+    cur  = conn.cursor()
+    cur.execute(
+        "SELECT id, idea, analysis, created_at FROM conversations WHERE user_id = %s ORDER BY created_at DESC LIMIT 50",
         (user["id"],),
-    ).fetchall()
+    )
+    rows = cur.fetchall()
+    cur.close()
     conn.close()
     return {"conversations": [dict(r) for r in rows]}
 
 @app.post("/conversations")
 async def save_conversation(conv: ConversationSave, user=Depends(require_auth)):
     conn = get_db()
-    conn.execute(
-        "INSERT OR REPLACE INTO conversations (id, user_id, idea, analysis, created_at) VALUES (?,?,?,?,?)",
+    cur  = conn.cursor()
+    cur.execute(
+        """INSERT INTO conversations (id, user_id, idea, analysis, created_at)
+           VALUES (%s,%s,%s,%s,%s)
+           ON CONFLICT (id) DO UPDATE
+           SET idea = EXCLUDED.idea, analysis = EXCLUDED.analysis, created_at = EXCLUDED.created_at""",
         (conv.id, user["id"], conv.idea, conv.analysis, conv.created_at),
     )
     conn.commit()
+    cur.close()
     conn.close()
     return {"status": "ok"}
 
 @app.delete("/conversations/{conv_id}")
 async def delete_conversation(conv_id: str, user=Depends(require_auth)):
     conn = get_db()
-    conn.execute("DELETE FROM conversations WHERE id = ? AND user_id = ?", (conv_id, user["id"]))
+    cur  = conn.cursor()
+    cur.execute("DELETE FROM conversations WHERE id = %s AND user_id = %s", (conv_id, user["id"]))
     conn.commit()
+    cur.close()
     conn.close()
     return {"status": "ok"}
 
