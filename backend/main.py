@@ -14,7 +14,10 @@ from datetime import datetime
 from typing import Optional
 from dotenv import load_dotenv
 
-load_dotenv()
+# Always resolve .env relative to this file so it loads correctly regardless
+# of the working directory the server is started from.
+_ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+load_dotenv(dotenv_path=_ENV_PATH)
 
 app = FastAPI()
 
@@ -29,6 +32,10 @@ app.add_middleware(
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_URL     = "https://api.groq.com/openai/v1/chat/completions"
 MODEL        = "llama-3.3-70b-versatile"
+
+if not GROQ_API_KEY:
+    import warnings
+    warnings.warn("⚠️  GROQ_API_KEY is not set. AI endpoints will return 401 errors.", RuntimeWarning)
 
 # ── Database ────────────────────────────────────────────────────
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.db")
@@ -126,6 +133,8 @@ class ConversationSave(BaseModel):
 
 # ── Groq call ───────────────────────────────────────────────────
 async def call_groq(system_prompt: str, user_prompt: str, max_tokens: int = 700) -> str:
+    if not GROQ_API_KEY:
+        raise ValueError("GROQ_API_KEY is not configured. Please set it in backend/.env and restart the server.")
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json",
