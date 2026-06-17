@@ -1,124 +1,311 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FoundersPath — Startup Validator</title>
+    <title>FoundersPath — Turn Your Idea Into Your First Real Step</title>
+    <meta name="description"
+        content="FoundersPath helps Nigerian student entrepreneurs validate startup ideas with AI-powered market analysis, roadmaps, and resource matching.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
-    <div class="app-container">
-        <header class="app-header">
-            <div class="logo">
-                <i class="fa-solid fa-compass-drafting logo-icon"></i>
-                <span class="logo-text">FoundersPath</span>
+
+    <!-- ===================== LANDING PAGE ===================== -->
+    <div id="landing-page" class="landing-page active">
+
+        <!-- NAV -->
+        <nav class="nav">
+            <div class="nav-inner">
+                <div class="nav-logo">
+                    <img src="assets/logo.svg" alt="FP" class="logo-img-sm">
+                    <span>FoundersPath</span>
+                </div>
+                <ul class="nav-links">
+                    <li><a href="#how-it-works" class="nav-link">How it works</a></li>
+                    <li><a href="#examples" class="nav-link">Examples</a></li>
+                </ul>
+                <a href="#" id="nav-sign-in" class="nav-link" style="font-weight:600">Sign In</a>
+                <a href="#" id="nav-cta" class="btn btn-outline-nav">Get Started</a>
             </div>
-            <p class="tagline">Verify assumptions. Refine vision. Launch with confidence.</p>
-        </header>
+        </nav>
 
-        <main class="main-content">
-            <section id="step-1" class="step-card active">
-                <div class="step-header">
-                    <div class="step-indicator">Step 1 of 3</div>
-                    <h2>Describe Your Startup Idea</h2>
-                    <p class="subtitle">Tell us what you want to build. The AI will challenge your idea with critical questions.</p>
-                </div>
-                <div class="form-group">
-                    <label for="startup-idea-input">What is your startup idea?</label>
-                    <textarea id="startup-idea-input" placeholder="e.g., An AI therapist for developers that runs locally and keeps all mental health data fully encrypted and private..." required></textarea>
-                    <div class="char-count"><span id="char-num">0</span> characters</div>
-                </div>
-                <div class="button-group">
-                    <button id="btn-get-questions" class="btn btn-primary">
-                        <span>Generate Questions</span>
-                        <i class="fa-solid fa-arrow-right"></i>
-                    </button>
-                </div>
-            </section>
+        <!-- HERO -->
+        <section class="hero">
+            <div class="hero-bg-image"></div>
+            <div class="hero-overlay"></div>
+            <div class="hero-content">
+                <h1 class="hero-title hero-anim">Turn Your Idea Into Your First<br>Real Step</h1>
+                <p class="hero-subtitle hero-anim" style="animation-delay:0.25s">No mentor needed. Just type your idea
+                    and we handle the rest.</p>
 
-            <section id="step-2" class="step-card hidden">
-                <div class="step-header">
-                    <div class="step-indicator">Step 2 of 3</div>
-                    <h2>The Smart Questions</h2>
-                    <p class="subtitle">Please answer these three critical questions raised by the AI.</p>
-                </div>
-                <div class="questions-container">
-                    <div class="form-group question-block">
-                        <label id="lbl-question-1" for="answer-1">Question 1</label>
-                        <textarea id="answer-1" placeholder="Provide your answer or assumption validation strategy..." required></textarea>
+                <div class="hero-card hero-anim" style="animation-delay:0.5s">
+                    <textarea id="hero-idea-input" class="hero-textarea"
+                        placeholder="I want to build a platform that connects local farmers in Lagos directly to urban restaurants..."
+                        rows="3"></textarea>
+                    <div class="hero-card-footer">
+                        <button id="btn-hero-analyse" class="btn btn-hero">
+                            Analyse My Idea <i class="fa-solid fa-arrow-right"></i>
+                        </button>
                     </div>
-                    <div class="form-group question-block">
-                        <label id="lbl-question-2" for="answer-2">Question 2</label>
-                        <textarea id="answer-2" placeholder="Provide your answer or assumption validation strategy..." required></textarea>
-                    </div>
-                    <div class="form-group question-block">
-                        <label id="lbl-question-3" for="answer-3">Question 3</label>
-                        <textarea id="answer-3" placeholder="Provide your answer or assumption validation strategy..." required></textarea>
-                    </div>
-                </div>
-                <div class="button-group justify-between">
-                    <button id="btn-back-to-step-1" class="btn btn-secondary">
-                        <i class="fa-solid fa-arrow-left"></i>
-                        <span>Back</span>
-                    </button>
-                    <button id="btn-get-analysis" class="btn btn-primary">
-                        <span>Analyze Startup</span>
-                        <i class="fa-solid fa-brain"></i>
-                    </button>
-                </div>
-            </section>
-
-            <section id="step-3" class="step-card hidden">
-                <div class="step-header">
-                    <div class="step-indicator">Step 3 of 3</div>
-                    <h2>Validation Dashboard</h2>
-                    <p class="subtitle">AI critique, confidence level, and roadmap.</p>
-                </div>
-
-                <div class="analysis-results">
-                    <div class="result-summary-card">
-                        <div class="confidence-display">
-                            <span class="label">Confidence Score</span>
-                            <div class="confidence-badge" id="confidence-badge-value">Medium</div>
-                        </div>
-                        <div class="glowing-ring-container">
-                            <div class="pulsing-glow" id="confidence-glow"></div>
-                        </div>
-                    </div>
-
-                    <div class="report-content" id="report-content-body"></div>
-                </div>
-
-                <div class="button-group justify-center mt-8">
-                    <button id="btn-restart" class="btn btn-secondary">
-                        <i class="fa-solid fa-rotate-left"></i>
-                        <span>Validate Another Idea</span>
-                    </button>
-                </div>
-            </section>
-        </main>
-
-        <div id="loading-overlay" class="loading-overlay hidden">
-            <div class="loading-spinner-container">
-                <div class="spinner"></div>
-                <p id="loading-text" class="loading-text">Challenging assumptions...</p>
-                <div class="loading-progress-bar">
-                    <div class="progress-bar-fill"></div>
                 </div>
             </div>
+        </section>
+
+        <!-- HOW IT WORKS -->
+        <section id="how-it-works" class="section-process">
+            <div class="section-inner">
+                <p class="section-label" data-animate>THE PROCESS</p>
+                <h2 class="section-title" data-animate data-delay="100">From Vision to Strategy</h2>
+
+                <div class="features-grid">
+                    <div class="feature-card" data-animate data-delay="0">
+                        <div class="feature-icon">
+                            <i class="fa-solid fa-chart-bar"></i>
+                        </div>
+                        <h3>Market Analysis</h3>
+                        <p>We scan regional market trends and competitor landscapes to identify your unique unfair
+                            advantage in the Nigerian ecosystem.</p>
+                    </div>
+                    <div class="feature-card" data-animate data-delay="150">
+                        <div class="feature-icon">
+                            <i class="fa-solid fa-map-signs"></i>
+                        </div>
+                        <h3>Step-by-Step Roadmap</h3>
+                        <p>Receive a granular, week-by-week action plan designed for student schedules, covering
+                            everything from MVP to legal registration.</p>
+                    </div>
+                    <div class="feature-card" data-animate data-delay="300">
+                        <div class="feature-icon">
+                            <i class="fa-solid fa-handshake"></i>
+                        </div>
+                        <h3>Resource Matching</h3>
+                        <p>Connect with local grants, technical partners, and student hubs specifically tailored to your
+                            industry and current stage.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- STATS -->
+        <section class="section-stats">
+            <div class="section-inner">
+                <div class="stats-grid">
+                    <div class="stat-item" data-animate data-delay="0">
+                        <span class="stat-number" data-count="500" data-suffix="+">0</span>
+                        <span class="stat-label">Ideas Analyzed</span>
+                    </div>
+                    <div class="stat-item" data-animate data-delay="100">
+                        <span class="stat-number gold">₦12M+</span>
+                        <span class="stat-label">Grants Secured</span>
+                    </div>
+                    <div class="stat-item" data-animate data-delay="200">
+                        <span class="stat-number" data-count="45" data-suffix="">0</span>
+                        <span class="stat-label">Campus Hubs</span>
+                    </div>
+                    <div class="stat-item" data-animate data-delay="300">
+                        <span class="stat-number gold" data-count="88" data-suffix="%">0%</span>
+                        <span class="stat-label">Success Rate</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- EXAMPLES -->
+        <section id="examples" class="section-examples">
+            <div class="section-inner">
+                <p class="section-label" data-animate>EXAMPLES</p>
+                <h2 class="section-title" data-animate data-delay="100">Ideas We've Validated</h2>
+                <div class="examples-grid">
+                    <div class="example-card" data-animate data-delay="0"
+                        data-idea="A mobile app that connects student freelancers with small businesses in Lagos who need affordable design and tech services">
+                        <div class="example-tag">EdTech / Freelance</div>
+                        <h4>Student Freelance Marketplace</h4>
+                        <p>Connecting student talent with local SMBs who can't afford agency rates.</p>
+                        <span class="example-try">Try this idea <i class="fa-solid fa-arrow-right"></i></span>
+                    </div>
+                    <div class="example-card" data-animate data-delay="150"
+                        data-idea="An app that tracks fresh produce expiry dates in small Nigerian supermarkets and automatically discounts near-expiry items to reduce waste">
+                        <div class="example-tag">FoodTech</div>
+                        <h4>Smart Produce Manager</h4>
+                        <p>Reducing food waste in Nigerian supermarkets with automated expiry tracking.</p>
+                        <span class="example-try">Try this idea <i class="fa-solid fa-arrow-right"></i></span>
+                    </div>
+                    <div class="example-card" data-animate data-delay="300"
+                        data-idea="A platform that helps artisans and craftsmen in Nigeria sell their products online and reach international buyers">
+                        <div class="example-tag">E-commerce</div>
+                        <h4>Nigerian Craft Marketplace</h4>
+                        <p>Empowering local artisans to sell globally from their workshops.</p>
+                        <span class="example-try">Try this idea <i class="fa-solid fa-arrow-right"></i></span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FOOTER -->
+        <footer class="landing-footer">
+            <div class="footer-inner">
+                <div class="footer-left">
+                    <div class="nav-logo">
+                        <img src="assets/logo.svg" alt="FP" class="logo-img-sm">
+                        <span>FoundersPath</span>
+                    </div>
+                    <p class="footer-copy">© 2024 FoundersPath. Empowering the next generation of<br>All innovators.
+                        Built for student entrepreneurs, by student<br>entrepreneurs.</p>
+                </div>
+                <div class="footer-links">
+                    <a href="#">Privacy Policy</a>
+                    <a href="#">Support Center</a>
+                    <a href="#">Terms of Service</a>
+                    <a href="#">Contact Us</a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- ===================== APP (CHATBOT) ===================== -->
+    <div id="app-page" class="app-page hidden">
+        <div class="chat-layout">
+
+            <!-- ── Sidebar ── -->
+            <aside class="chat-sidebar" id="chat-sidebar">
+                <div class="cs-header">
+                    <button class="cs-logo" id="app-logo-home">
+                        <img src="assets/logo.svg" alt="FP" class="logo-img-sm">
+                        <span>FoundersPath</span>
+                    </button>
+                    <button class="cs-collapse" id="btn-cs-collapse" title="Collapse sidebar">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                            <line x1="9" y1="3" x2="9" y2="21" />
+                        </svg>
+                    </button>
+                </div>
+
+                <button class="cs-new-btn" id="btn-new-analysis">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2.5">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    New Analysis
+                </button>
+
+                <div class="cs-recents">
+                    <div class="cs-recents-label">History</div>
+                    <div class="cs-recents-list" id="cs-history-list">
+                        <div class="cs-recents-empty">No analyses yet</div>
+                    </div>
+                </div>
+
+                <div class="cs-account-area" id="cs-account-area"></div>
+            </aside>
+
+            <!-- ── Main ── -->
+            <main class="chat-main" id="chat-main">
+
+                <button class="cs-float-expand" id="btn-cs-expand" title="Expand sidebar">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <line x1="9" y1="3" x2="9" y2="21" />
+                    </svg>
+                </button>
+
+                <!-- Home View -->
+                <div class="chat-home" id="chat-home">
+                    <div class="chat-home-inner">
+                        <img src="assets/logo.svg" alt="FP" class="chat-home-logo">
+                        <h2 class="chat-home-title">What's your startup idea?</h2>
+                        <p class="chat-home-sub">I'll challenge your assumptions and help you validate it.</p>
+                        <div class="chat-example-pills">
+                            <button class="chat-example-pill"
+                                data-idea="A mobile app that connects student freelancers with small businesses in Lagos who need affordable design and tech services">Student
+                                Freelance Marketplace</button>
+                            <button class="chat-example-pill"
+                                data-idea="An app that tracks fresh produce expiry dates in small Nigerian supermarkets and automatically discounts near-expiry items to reduce waste">Smart
+                                Produce Manager</button>
+                            <button class="chat-example-pill"
+                                data-idea="A platform that helps artisans and craftsmen in Nigeria sell their products online and reach international buyers">Nigerian
+                                Craft Marketplace</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Thread -->
+                <div class="chat-scroll" id="chat-scroll" style="display:none">
+                    <div class="chat-thread" id="chat-thread"></div>
+                </div>
+
+                <!-- Input Dock -->
+                <div class="chat-input-dock">
+                    <div class="chat-input-wrap" id="chat-input-wrap">
+                        <textarea id="chat-input" class="chat-input-ta" placeholder="Describe your startup idea..."
+                            rows="1"></textarea>
+                        <div class="chat-input-footer">
+                            <button class="chat-send-btn" id="btn-send" title="Send">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5">
+                                    <line x1="22" y1="2" x2="11" y2="13" />
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
         </div>
 
         <div id="toast-container" class="toast-container"></div>
+    </div>
 
-        <footer class="app-footer">
-            <p>&copy; 2026 FoundersPath.</p>
-        </footer>
+    <!-- ===================== AUTH MODAL ===================== -->
+    <div class="auth-overlay" id="auth-overlay">
+        <div class="auth-modal">
+            <button class="auth-close" id="auth-close" title="Close">✕</button>
+
+            <div class="auth-brand">
+                <img src="assets/logo.svg" alt="FP" style="width:32px;height:32px;border-radius:8px">
+                <span>FoundersPath</span>
+            </div>
+
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-tab="login">Sign In</button>
+                <button class="auth-tab" data-tab="register">Create Account</button>
+            </div>
+
+            <!-- Login -->
+            <div class="auth-form" id="auth-form-login">
+                <input class="auth-input" id="auth-login-email" type="email" placeholder="Email address"
+                    autocomplete="email" />
+                <input class="auth-input" id="auth-login-password" type="password" placeholder="Password"
+                    autocomplete="current-password" />
+                <p class="auth-error" id="auth-login-error"></p>
+                <button class="auth-submit" id="auth-login-submit">Sign In</button>
+            </div>
+
+            <!-- Register -->
+            <div class="auth-form" id="auth-form-register" style="display:none">
+                <input class="auth-input" id="auth-reg-name" type="text" placeholder="Your name" autocomplete="name" />
+                <input class="auth-input" id="auth-reg-email" type="email" placeholder="Email address"
+                    autocomplete="email" />
+                <input class="auth-input" id="auth-reg-password" type="password"
+                    placeholder="Password (min. 6 characters)" autocomplete="new-password" />
+                <p class="auth-error" id="auth-reg-error"></p>
+                <button class="auth-submit" id="auth-reg-submit">Create Account</button>
+            </div>
+        </div>
     </div>
 
     <script src="app.js"></script>
 </body>
+
 </html>

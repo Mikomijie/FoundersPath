@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="rgba(255,255,255,0.18)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="54" fill="url(#bg)"/>
+  <rect width="256" height="128" rx="54" fill="url(#shine)"/>
+  <rect y="74" width="256" height="54" fill="url(#shine)"/>
+  <rect x="2.5" y="2.5" width="251" height="251" rx="51.5" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="2"/>
+  <rect x="40" y="62" width="24" height="136" rx="5" fill="white"/>
+  <rect x="40" y="62" width="88" height="24" rx="5" fill="white"/>
+  <rect x="40" y="120" width="64" height="22" rx="5" fill="white"/>
+  <rect x="148" y="62" width="24" height="136" rx="5" fill="white"/>
+  <path d="M 172 74 A 38 38 0 0 1 172 150" fill="none" stroke="white" stroke-width="23" stroke-linecap="butt"/>
+  <rect x="148" y="62"  width="36" height="24" fill="white"/>
+  <rect x="148" y="138" width="36" height="24" fill="white"/>
+  <path d="M 44 208 C 84 220 172 220 212 208" fill="none" stroke="rgba(255,255,255,0.32)" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="128" cy="216" r="4.5" fill="rgba(255,255,255,0.55)"/>
+</svg>

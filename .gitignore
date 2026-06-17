@@ -1,0 +1,16 @@
+# Environment & secrets
+backend/.env
+.env
+
+# Database (user data — never commit)
+backend/data.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
