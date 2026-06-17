@@ -5,8 +5,10 @@ from pydantic import BaseModel
 import httpx
 import os
 import re
+import asyncio
 import psycopg2
 import psycopg2.extras
+import psycopg2.pool
 import hashlib
 import hmac
 import secrets
@@ -45,48 +47,66 @@ if not DATABASE_URL:
     import warnings
     warnings.warn("⚠️  DATABASE_URL is not set. All database operations will fail.", RuntimeWarning)
 
+# Connection pool — reuses existing TCP/TLS connections instead of opening
+# a new one for every request (cuts ~500ms+ latency per login/query).
+_db_url = (DATABASE_URL or "").replace("postgres://", "postgresql://", 1)
+_pool: psycopg2.pool.ThreadedConnectionPool | None = None
+
+def _get_pool() -> psycopg2.pool.ThreadedConnectionPool:
+    global _pool
+    if _pool is None or _pool.closed:
+        _pool = psycopg2.pool.ThreadedConnectionPool(
+            minconn=1, maxconn=10,
+            dsn=_db_url,
+            cursor_factory=psycopg2.extras.RealDictCursor,
+        )
+    return _pool
+
+class _PooledConn:
+    """Context manager: borrows a connection from the pool and returns it on exit."""
+    def __enter__(self):
+        self.conn = _get_pool().getconn()
+        return self.conn
+    def __exit__(self, exc_type, *_):
+        if exc_type:
+            self.conn.rollback()
+        _get_pool().putconn(self.conn)
+
 def get_db():
-    """Return a new psycopg2 connection using the DATABASE_URL env var."""
-    if not DATABASE_URL:
-        raise RuntimeError("DATABASE_URL environment variable is not set.")
-    # Supabase connection strings use 'postgres://' — psycopg2 needs 'postgresql://'
-    url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    conn = psycopg2.connect(url, cursor_factory=psycopg2.extras.RealDictCursor)
-    return conn
+    return _PooledConn()
 
 def init_db():
     """Create tables if they don't already exist."""
-    conn = get_db()
-    cur  = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id            TEXT PRIMARY KEY,
-            email         TEXT UNIQUE NOT NULL,
-            name          TEXT NOT NULL,
-            password_hash TEXT NOT NULL,
-            salt          TEXT NOT NULL,
-            created_at    TEXT NOT NULL
-        );
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS sessions (
-            token      TEXT PRIMARY KEY,
-            user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            created_at TEXT NOT NULL
-        );
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS conversations (
-            id         TEXT PRIMARY KEY,
-            user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            idea       TEXT NOT NULL,
-            analysis   TEXT,
-            created_at TEXT NOT NULL
-        );
-    """)
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id            TEXT PRIMARY KEY,
+                email         TEXT UNIQUE NOT NULL,
+                name          TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                salt          TEXT NOT NULL,
+                created_at    TEXT NOT NULL
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                token      TEXT PRIMARY KEY,
+                user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS conversations (
+                id         TEXT PRIMARY KEY,
+                user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                idea       TEXT NOT NULL,
+                analysis   TEXT,
+                created_at TEXT NOT NULL
+            );
+        """)
+        conn.commit()
+        cur.close()
 
 try:
     init_db()
@@ -95,29 +115,35 @@ except Exception as e:
     warnings.warn(f"⚠️  Could not initialise database: {e}", RuntimeWarning)
 
 # ── Auth helpers ────────────────────────────────────────────────
-def hash_password(password: str, salt: str = None):
+def _hash_password_sync(password: str, salt: str) -> str:
+    """CPU-intensive — always call via hash_password() to stay off the event loop."""
+    key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 200_000)
+    return key.hex()
+
+async def hash_password(password: str, salt: str = None):
+    """Returns (hash, salt). Runs pbkdf2 in a thread so FastAPI stays responsive."""
     if salt is None:
         salt = secrets.token_hex(16)
-    key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 200_000)
-    return key.hex(), salt
+    loop = asyncio.get_running_loop()
+    hashed = await loop.run_in_executor(None, _hash_password_sync, password, salt)
+    return hashed, salt
 
-def verify_password(password: str, password_hash: str, salt: str) -> bool:
-    computed, _ = hash_password(password, salt)
+async def verify_password(password: str, password_hash: str, salt: str) -> bool:
+    computed, _ = await hash_password(password, salt)
     return hmac.compare_digest(computed, password_hash)
 
 def get_user_from_token(authorization: Optional[str] = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
         return None
     token = authorization[7:]
-    conn  = get_db()
-    cur   = conn.cursor()
-    cur.execute(
-        "SELECT u.* FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.token = %s",
-        (token,)
-    )
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT u.* FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.token = %s",
+            (token,)
+        )
+        row = cur.fetchone()
+        cur.close()
     return dict(row) if row else None
 
 def require_auth(authorization: Optional[str] = Header(None)):
@@ -205,55 +231,48 @@ async def register(req: RegisterRequest):
     if len(req.name.strip()) < 3:
         raise HTTPException(400, "Name must be at least 3 characters.")
 
-    password_hash, salt = hash_password(req.password)
+    password_hash, salt = await hash_password(req.password)
     user_id = str(uuid.uuid4())
     token   = secrets.token_hex(32)
 
-    conn = get_db()
-    cur  = conn.cursor()
     try:
-        cur.execute(
-            "INSERT INTO users (id, email, name, password_hash, salt, created_at) VALUES (%s,%s,%s,%s,%s,%s)",
-            (user_id, req.email.lower().strip(), req.name.strip(), password_hash, salt, datetime.utcnow().isoformat()),
-        )
-        cur.execute(
-            "INSERT INTO sessions (token, user_id, created_at) VALUES (%s,%s,%s)",
-            (token, user_id, datetime.utcnow().isoformat()),
-        )
-        conn.commit()
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO users (id, email, name, password_hash, salt, created_at) VALUES (%s,%s,%s,%s,%s,%s)",
+                (user_id, req.email.lower().strip(), req.name.strip(), password_hash, salt, datetime.utcnow().isoformat()),
+            )
+            cur.execute(
+                "INSERT INTO sessions (token, user_id, created_at) VALUES (%s,%s,%s)",
+                (token, user_id, datetime.utcnow().isoformat()),
+            )
+            conn.commit()
+            cur.close()
     except psycopg2.errors.UniqueViolation:
-        conn.rollback()
-        cur.close()
-        conn.close()
         raise HTTPException(409, "An account with this email already exists.")
-    finally:
-        cur.close()
-        conn.close()
 
     return {"token": token, "user": {"id": user_id, "email": req.email.lower().strip(), "name": req.name.strip()}}
 
 @app.post("/auth/login")
 async def login(req: LoginRequest):
-    conn = get_db()
-    cur  = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE email = %s", (req.email.lower().strip(),))
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM users WHERE email = %s", (req.email.lower().strip(),))
+        row = cur.fetchone()
+        cur.close()
 
-    if not row or not verify_password(req.password, row["password_hash"], row["salt"]):
+    if not row or not await verify_password(req.password, row["password_hash"], row["salt"]):
         raise HTTPException(401, "Incorrect email or password.")
 
     token = secrets.token_hex(32)
-    conn  = get_db()
-    cur   = conn.cursor()
-    cur.execute(
-        "INSERT INTO sessions (token, user_id, created_at) VALUES (%s,%s,%s)",
-        (token, row["id"], datetime.utcnow().isoformat()),
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO sessions (token, user_id, created_at) VALUES (%s,%s,%s)",
+            (token, row["id"], datetime.utcnow().isoformat()),
+        )
+        conn.commit()
+        cur.close()
 
     return {"token": token, "user": {"id": row["id"], "email": row["email"], "name": row["name"]}}
 
@@ -261,12 +280,11 @@ async def login(req: LoginRequest):
 async def logout(authorization: Optional[str] = Header(None)):
     if authorization and authorization.startswith("Bearer "):
         token = authorization[7:]
-        conn  = get_db()
-        cur   = conn.cursor()
-        cur.execute("DELETE FROM sessions WHERE token = %s", (token,))
-        conn.commit()
-        cur.close()
-        conn.close()
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM sessions WHERE token = %s", (token,))
+            conn.commit()
+            cur.close()
     return {"status": "ok"}
 
 @app.get("/auth/me")
@@ -276,41 +294,38 @@ async def me(user=Depends(require_auth)):
 # ── Conversation routes ─────────────────────────────────────────
 @app.get("/conversations")
 async def list_conversations(user=Depends(require_auth)):
-    conn = get_db()
-    cur  = conn.cursor()
-    cur.execute(
-        "SELECT id, idea, analysis, created_at FROM conversations WHERE user_id = %s ORDER BY created_at DESC LIMIT 50",
-        (user["id"],),
-    )
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, idea, analysis, created_at FROM conversations WHERE user_id = %s ORDER BY created_at DESC LIMIT 50",
+            (user["id"],),
+        )
+        rows = cur.fetchall()
+        cur.close()
     return {"conversations": [dict(r) for r in rows]}
 
 @app.post("/conversations")
 async def save_conversation(conv: ConversationSave, user=Depends(require_auth)):
-    conn = get_db()
-    cur  = conn.cursor()
-    cur.execute(
-        """INSERT INTO conversations (id, user_id, idea, analysis, created_at)
-           VALUES (%s,%s,%s,%s,%s)
-           ON CONFLICT (id) DO UPDATE
-           SET idea = EXCLUDED.idea, analysis = EXCLUDED.analysis, created_at = EXCLUDED.created_at""",
-        (conv.id, user["id"], conv.idea, conv.analysis, conv.created_at),
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO conversations (id, user_id, idea, analysis, created_at)
+               VALUES (%s,%s,%s,%s,%s)
+               ON CONFLICT (id) DO UPDATE
+               SET idea = EXCLUDED.idea, analysis = EXCLUDED.analysis, created_at = EXCLUDED.created_at""",
+            (conv.id, user["id"], conv.idea, conv.analysis, conv.created_at),
+        )
+        conn.commit()
+        cur.close()
     return {"status": "ok"}
 
 @app.delete("/conversations/{conv_id}")
 async def delete_conversation(conv_id: str, user=Depends(require_auth)):
-    conn = get_db()
-    cur  = conn.cursor()
-    cur.execute("DELETE FROM conversations WHERE id = %s AND user_id = %s", (conv_id, user["id"]))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM conversations WHERE id = %s AND user_id = %s", (conv_id, user["id"]))
+        conn.commit()
+        cur.close()
     return {"status": "ok"}
 
 # ── AI routes ───────────────────────────────────────────────────
